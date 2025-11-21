@@ -5,6 +5,10 @@
     {
       "AbsoluteMoniker": "D:0:0:{1726F2D4-5E91-1548-E71F-7A6D93105379}|ClinicManagementSystem\\ClinicManagementSystem.csproj|c:\\users\\homem\\source\\repos\\clinicmanagementsystem\\clinicmanagementsystem\\.gitignore||{3B902123-F8A7-4915-9F01-361F908088D0}",
       "RelativeMoniker": "D:0:0:{1726F2D4-5E91-1548-E71F-7A6D93105379}|ClinicManagementSystem\\ClinicManagementSystem.csproj|solutionrelative:clinicmanagementsystem\\.gitignore||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{1726F2D4-5E91-1548-E71F-7A6D93105379}|ClinicManagementSystem\\ClinicManagementSystem.csproj|c:\\users\\homem\\source\\repos\\clinicmanagementsystem\\clinicmanagementsystem\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{1726F2D4-5E91-1548-E71F-7A6D93105379}|ClinicManagementSystem\\ClinicManagementSystem.csproj|solutionrelative:clinicmanagementsystem\\appsettings.development.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
     }
   ],
   "DocumentGroupContainers": [
@@ -28,9 +32,22 @@
               "RelativeDocumentMoniker": "ClinicManagementSystem\\.gitignore",
               "ToolTip": "C:\\Users\\homem\\source\\repos\\ClinicManagementSystem\\ClinicManagementSystem\\.gitignore",
               "RelativeToolTip": "ClinicManagementSystem\\.gitignore",
-              "ViewState": "AgIAAB8AAAAAAAAAAAAwwDoAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
-              "WhenOpened": "2025-11-21T12:58:26.331Z",
+              "WhenOpened": "2025-11-21T14:20:58.381Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "appsettings.Development.json",
+              "DocumentMoniker": "C:\\Users\\homem\\source\\repos\\ClinicManagementSystem\\ClinicManagementSystem\\appsettings.Development.json",
+              "RelativeDocumentMoniker": "ClinicManagementSystem\\appsettings.Development.json",
+              "ToolTip": "C:\\Users\\homem\\source\\repos\\ClinicManagementSystem\\ClinicManagementSystem\\appsettings.Development.json",
+              "RelativeToolTip": "ClinicManagementSystem\\appsettings.Development.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2025-11-21T14:20:54.928Z",
               "EditorCaption": ""
             }
           ]
