@@ -1,0 +1,58 @@
+	# Visual Studio cache and user-specific files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+bin/
+obj/
+[Bb]uild/
+[Ll]og/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+
+# NuGet packages
+*.nupkg
+*.snupkg
+packages/
+*.nuget.props
+*.nuget.targets
+
+# Auto-generated files
+Generated/
+Generated Files/
+
+# Visual Studio database files
+*.v12.suo
+*.dbmdl
+
+# Temporary files
+*.tmp
+*.temp
+*.cache
+*.vsidx
+
+# Rider / JetBrains
+.idea/
+*.DotSettings.user
+
+# ASP.NET specific
+appsettings.Development.json
+appsettings.Local.json
+appsettings.*.json
+
+# Logs
+*.log
+
+# Publish output
+publish/
+wwwroot/lib/
+
+# Others
+node_modules/

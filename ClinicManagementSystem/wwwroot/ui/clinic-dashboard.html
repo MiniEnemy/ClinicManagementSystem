@@ -1,0 +1,208 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Clinic Dashboard</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h2 {
+            margin-top: 40px;
+        }
+
+        input, select {
+            margin: 5px;
+            padding: 5px;
+        }
+
+        button {
+            padding: 5px 10px;
+            margin: 5px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 80%;
+            margin-top: 10px;
+        }
+
+        table, th, td {
+            border: 1px solid #ccc;
+        }
+
+        th, td {
+            padding: 5px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Clinic Management Dashboard</h1>
+
+    <h2>Login</h2>
+    <form id="loginForm">
+        Email: <input id="loginEmail" type="email"><br>
+        Password: <input id="loginPassword" type="password"><br>
+        <button type="submit">Login</button>
+    </form>
+
+    <h2>Create Patient</h2>
+    <form id="patientForm">
+        First Name: <input id="pFirstName"><br>
+        Last Name: <input id="pLastName"><br>
+        Email: <input id="pEmail"><br>
+        Phone: <input id="pPhone"><br>
+        Date of Birth: <input id="pDOB" type="date"><br>
+        <button type="submit">Create Patient</button>
+    </form>
+
+    <h2>Create Doctor</h2>
+    <form id="doctorForm">
+        Full Name: <input id="dFullName"><br>
+        Specialization: <input id="dSpec"><br>
+        Email: <input id="dEmail"><br>
+        Phone: <input id="dPhone"><br>
+        <button type="submit">Create Doctor</button>
+    </form>
+
+    <h2>Add Doctor Schedule</h2>
+    <form id="scheduleForm">
+        Doctor ID: <input id="sDoctorId" type="number"><br>
+        Day of Week (0=Sun,6=Sat): <input id="sDay" type="number"><br>
+        Start Time (HH:MM:SS): <input id="sStart" type="time"><br>
+        End Time (HH:MM:SS): <input id="sEnd" type="time"><br>
+        <button type="submit">Add Schedule</button>
+    </form>
+
+    <h2>Create Appointment</h2>
+    <form id="appointmentForm">
+        Patient ID: <input id="aPatientId" type="number"><br>
+        Doctor ID: <input id="aDoctorId" type="number"><br>
+        Appointment DateTime: <input id="aDateTime" type="datetime-local"><br>
+        Description: <input id="aDesc"><br>
+        <button type="submit">Create Appointment</button>
+    </form>
+
+    <h2>View Lists</h2>
+    <button id="loadPatients">Load Patients</button>
+    <button id="loadDoctors">Load Doctors</button>
+    <button id="loadAppointments">Load Appointments</button>
+
+    <div id="output"></div>
+
+    <script>
+let token = "";
+
+// Base API URL
+        const apiBase = "https://localhost:7215/api/";
+
+// Login
+document.getElementById("loginForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const res = await fetch(apiBase + "Auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            email: document.getElementById("loginEmail").value,
+            password: document.getElementById("loginPassword").value
+        })
+    });
+    const data = await res.json();
+    if(res.ok) {
+        token = data.token;
+        alert("Login successful!");
+    } else {
+        alert("Login failed: " + JSON.stringify(data));
+    }
+});
+
+// Helper function for authorized POST
+async function authPost(endpoint, data) {
+    const res = await fetch(apiBase + endpoint, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify(data)
+    });
+    return res;
+}
+
+// Create Patient
+document.getElementById("patientForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const data = {
+        firstName: document.getElementById("pFirstName").value,
+        lastName: document.getElementById("pLastName").value,
+        email: document.getElementById("pEmail").value,
+        phone: document.getElementById("pPhone").value,
+        dateOfBirth: document.getElementById("pDOB").value
+    };
+    const res = await authPost("Patient", data);
+    if(res.ok) alert("Patient created!");
+    else alert("Error creating patient");
+});
+
+// Create Doctor
+document.getElementById("doctorForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const data = {
+        fullName: document.getElementById("dFullName").value,
+        specialization: document.getElementById("dSpec").value,
+        email: document.getElementById("dEmail").value,
+        phone: document.getElementById("dPhone").value
+    };
+    const res = await authPost("Doctor", data);
+    if(res.ok) alert("Doctor created!");
+    else alert("Error creating doctor");
+});
+
+// Add Schedule
+document.getElementById("scheduleForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const data = {
+        doctorId: parseInt(document.getElementById("sDoctorId").value),
+        dayOfWeek: parseInt(document.getElementById("sDay").value),
+        startTime: document.getElementById("sStart").value + ":00",
+        endTime: document.getElementById("sEnd").value + ":00"
+    };
+    const res = await authPost("DoctorSchedule", data);
+    if(res.ok) alert("Schedule added!");
+    else alert("Error adding schedule");
+});
+
+// Create Appointment
+document.getElementById("appointmentForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const data = {
+        patientId: parseInt(document.getElementById("aPatientId").value),
+        doctorId: parseInt(document.getElementById("aDoctorId").value),
+        appointmentDate: document.getElementById("aDateTime").value,
+        description: document.getElementById("aDesc").value
+    };
+    const res = await authPost("Appointment", data);
+    if(res.ok) alert("Appointment created!");
+    else alert("Error creating appointment");
+});
+
+// Load lists
+async function loadData(endpoint) {
+    const res = await fetch(apiBase + endpoint, {
+        headers: { "Authorization": "Bearer " + token }
+    });
+    const data = await res.json();
+    document.getElementById("output").innerHTML = "<pre>" + JSON.stringify(data, null, 2) + "</pre>";
+}
+
+document.getElementById("loadPatients").addEventListener("click", () => loadData("Patient"));
+document.getElementById("loadDoctors").addEventListener("click", () => loadData("Doctor"));
+document.getElementById("loadAppointments").addEventListener("click", () => loadData("Appointment"));
+    </script>
+
+</body>
+</html>
