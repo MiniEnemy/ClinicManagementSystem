@@ -2,9 +2,8 @@
 
 namespace ClinicManagementSystem.Entities
 {
-   
     public class ApplicationUser : IdentityUser
     {
-       
+        public int? DoctorId { get; set; }  // NEW FIELD
     }
 }

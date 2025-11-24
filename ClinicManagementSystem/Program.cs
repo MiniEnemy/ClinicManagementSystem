@@ -1,4 +1,4 @@
-using ClinicManagementSystem.Data;
+﻿using ClinicManagementSystem.Data;
 using ClinicManagementSystem.Entities;
 using ClinicManagementSystem.Interfaces;
 using ClinicManagementSystem.Mappings;
@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,7 +20,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 );
 
 // ------------------------------------------------------------
-// 2. IDENTITY (User + Role Management)
+// 2. IDENTITY
 // ------------------------------------------------------------
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
@@ -35,8 +36,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 // 3. JWT AUTHENTICATION
 // ------------------------------------------------------------
 var jwtSection = builder.Configuration.GetSection("JwtSettings");
-var key = Encoding.UTF8.GetBytes(jwtSection["Key"]!);
-
+var keyBytes = Encoding.UTF8.GetBytes(jwtSection["Key"] ?? string.Empty);
 
 builder.Services.AddAuthentication(options =>
 {
@@ -45,7 +45,7 @@ builder.Services.AddAuthentication(options =>
 })
 .AddJwtBearer(options =>
 {
-    options.RequireHttpsMetadata = false;
+    options.RequireHttpsMetadata = false; // IMPORTANT FOR LOCALHOST
     options.SaveToken = true;
 
     options.TokenValidationParameters = new TokenValidationParameters
@@ -53,11 +53,11 @@ builder.Services.AddAuthentication(options =>
         ValidateIssuer = true,
         ValidateAudience = true,
         ValidateLifetime = true,
-        ValidateIssuerSigningKey = true,    
+        ValidateIssuerSigningKey = true,
 
         ValidIssuer = jwtSection["Issuer"],
         ValidAudience = jwtSection["Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(key)
+        IssuerSigningKey = new SymmetricSecurityKey(keyBytes)
     };
 });
 
@@ -81,16 +81,54 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddAutoMapper(typeof(AutoMapperProfile));
 
 // ------------------------------------------------------------
-// 7. Controllers & Swagger
+// 7. CORS (FIXES SWAGGER "FAILED TO FETCH")
+// ------------------------------------------------------------
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+// ------------------------------------------------------------
+// 8. Controllers & Swagger (with JWT support)
 // ------------------------------------------------------------
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "Clinic API", Version = "v1" });
+
+    var jwtSchema = new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Description = "Enter JWT token as: Bearer {token}",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        Reference = new OpenApiReference
+        {
+            Type = ReferenceType.SecurityScheme,
+            Id = "Bearer"
+        }
+    };
+
+    c.AddSecurityDefinition("Bearer", jwtSchema);
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        { jwtSchema, new string[] { } }
+    });
+});
 
 var app = builder.Build();
 
 // ------------------------------------------------------------
-// 8. Swagger Dev Mode
+// 9. Swagger Dev Mode
 // ------------------------------------------------------------
 if (app.Environment.IsDevelopment())
 {
@@ -99,15 +137,21 @@ if (app.Environment.IsDevelopment())
 }
 
 // ------------------------------------------------------------
-// 9. MIDDLEWARE PIPELINE
+// 10. MIDDLEWARE PIPELINE (CORRECT ORDER)
 // ------------------------------------------------------------
-app.UseRouting();
+app.UseHttpsRedirection();
+
+app.UseRouting();           // <--- Must appear before Cors/Auth
+
+app.UseCors("AllowAll");
+
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 // ------------------------------------------------------------
-// 10. APPLY MIGRATIONS + SEED ROLES + DEFAULT ADMIN
+// 11. MIGRATIONS + SEEDING
 // ------------------------------------------------------------
 using (var scope = app.Services.CreateScope())
 {

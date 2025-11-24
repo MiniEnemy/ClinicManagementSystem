@@ -10,24 +10,55 @@ namespace ClinicManagementSystem.Repositories
         private readonly AppDbContext _context;
         public AppointmentRepository(AppDbContext context) => _context = context;
 
-        public async Task AddAsync(Appointment entity) => await _context.Appointments.AddAsync(entity);
+        public async Task AddAsync(Appointment entity)
+        {
+            await _context.Appointments.AddAsync(entity);
+        }
 
-        public async Task<IEnumerable<Appointment>> GetAllAsync() =>
-            await _context.Appointments.Include(a => a.Patient).Include(a => a.Doctor).ToListAsync();
+        public async Task<IEnumerable<Appointment>> GetAllAsync()
+        {
+            return await _context.Appointments
+                .Include(a => a.Patient)
+                .Include(a => a.Doctor)
+                .ToListAsync();
+        }
 
-        public async Task<Appointment?> GetByIdAsync(int id) =>
-            await _context.Appointments.Include(a => a.Patient).Include(a => a.Doctor)
+        public async Task<Appointment?> GetByIdAsync(int id)
+        {
+            return await _context.Appointments
+                .Include(a => a.Patient)
+                .Include(a => a.Doctor)
                 .FirstOrDefaultAsync(a => a.Id == id);
+        }
 
-        public void Remove(Appointment entity) => _context.Appointments.Remove(entity);
+        public void Update(Appointment entity)
+        {
+            _context.Appointments.Update(entity);
+        }
 
-        public void Update(Appointment entity) => _context.Appointments.Update(entity);
+        public void Remove(Appointment entity)
+        {
+            _context.Appointments.Remove(entity);
+        }
 
-        public async Task<IEnumerable<Appointment>> GetByDoctorIdAsync(int doctorId) =>
-            await _context.Appointments.Where(a => a.DoctorId == doctorId).ToListAsync();
+        public async Task<IEnumerable<Appointment>> GetByDoctorIdAsync(int doctorId)
+        {
+            return await _context.Appointments
+                .Where(a => a.DoctorId == doctorId)
+                .Include(a => a.Patient)
+                .Include(a => a.Doctor)
+                .ToListAsync();
+        }
 
-        // Simple overlap check: assume exact DateTime match is conflict (improve as needed)
-        public async Task<bool> HasConflictAsync(int doctorId, DateTime appointmentDate) =>
-            await _context.Appointments.AnyAsync(a => a.DoctorId == doctorId && a.AppointmentDate == appointmentDate);
+        // Conflict check: ignore Cancelled + Completed, check appointment within same time slot
+        public async Task<bool> HasConflictAsync(int doctorId, DateTime appointmentDate)
+        {
+            return await _context.Appointments.AnyAsync(a =>
+                a.DoctorId == doctorId &&
+                a.AppointmentDate == appointmentDate &&
+                a.Status == AppointmentStatus.Scheduled
+            );
+        }
+
     }
 }

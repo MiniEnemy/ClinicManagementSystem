@@ -20,18 +20,25 @@ namespace ClinicManagementSystem.Controllers
             _mapper = mapper;
         }
 
-        // Create patient - Admin or Receptionist
+        // Create patient (Admin + Receptionist)
         [HttpPost]
         [Authorize(Roles = "Admin,Receptionist")]
         public async Task<IActionResult> Create([FromBody] CreatePatientDto dto)
         {
             var patient = _mapper.Map<Patient>(dto);
+
+            // Ensure UTC
+            patient.DateOfBirth = DateTime.SpecifyKind(dto.DateOfBirth, DateTimeKind.Utc);
+
             await _uow.Patients.AddAsync(patient);
             await _uow.CompleteAsync();
-            return CreatedAtAction(nameof(Get), new { id = patient.Id }, _mapper.Map<PatientDto>(patient));
+
+            return CreatedAtAction(nameof(Get),
+                new { id = patient.Id },
+                _mapper.Map<PatientDto>(patient));
         }
 
-        // List patients - any authenticated user
+        // Get all patients
         [HttpGet]
         [Authorize]
         public async Task<IActionResult> GetAll()
@@ -40,13 +47,14 @@ namespace ClinicManagementSystem.Controllers
             return Ok(_mapper.Map<IEnumerable<PatientDto>>(patients));
         }
 
-        // View patient by id
+        // Get single patient
         [HttpGet("{id}")]
         [Authorize]
         public async Task<IActionResult> Get(int id)
         {
             var patient = await _uow.Patients.GetByIdAsync(id);
             if (patient == null) return NotFound();
+
             return Ok(_mapper.Map<PatientDto>(patient));
         }
 
@@ -59,12 +67,15 @@ namespace ClinicManagementSystem.Controllers
             if (patient == null) return NotFound();
 
             _mapper.Map(dto, patient);
+            patient.DateOfBirth = DateTime.SpecifyKind(dto.DateOfBirth, DateTimeKind.Utc);
+
             _uow.Patients.Update(patient);
             await _uow.CompleteAsync();
+
             return Ok(_mapper.Map<PatientDto>(patient));
         }
 
-        // Soft delete patient (Admin only)
+        // Soft delete
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
