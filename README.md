@@ -1,5 +1,4 @@
-[file name]: README.md
-[file content begin]
+
 # Clinic Management System
 
 A complete RESTful Web API for managing clinic operations including patients, doctors, appointments, and schedules. Built with ASP.NET Core, Entity Framework, and PostgreSQL.
