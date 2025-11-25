@@ -27,7 +27,7 @@ A complete RESTful Web API for managing clinic operations including patients, do
 
 - .NET 6.0 SDK
 - PostgreSQL Database
-- Visual Studio 2022 or VS Code
+- Visual Studio 2026 or VS Code
 
 ## ⚙️ Setup & Installation
 
