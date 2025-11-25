@@ -3,19 +3,19 @@
     public class Patient
     {
         public int Id { get; set; }
+        public string FirstName { get; set; } = null!;
+        public string LastName { get; set; } = null!;
+        public string Email { get; set; } = null!;
+        public string Phone { get; set; } = null!;
+        public DateTime DateOfBirth { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public bool IsDeleted { get; set; }
 
-        public string FirstName { get; set; } = string.Empty;
-
-        public string LastName { get; set; } = string.Empty;
-
-        public string Email { get; set; } = string.Empty;
-
-        public string Phone { get; set; } = string.Empty;
-
-        public DateTime DateOfBirth { get; set; } // must be UTC
-
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-
-        public bool IsDeleted { get; set; } = false;
+        public void SetUtcDates()
+        {
+            DateOfBirth = DateTime.SpecifyKind(DateOfBirth, DateTimeKind.Utc);
+            CreatedAt = DateTime.SpecifyKind(CreatedAt, DateTimeKind.Utc);
+        }
     }
+
 }

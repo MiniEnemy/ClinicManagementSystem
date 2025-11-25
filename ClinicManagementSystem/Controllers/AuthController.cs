@@ -1,5 +1,6 @@
 ﻿using ClinicManagementSystem.DTOs.Auth;
 using ClinicManagementSystem.Entities;
+using ClinicManagementSystem.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
@@ -17,20 +18,20 @@ namespace ClinicManagementSystem.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IConfiguration _configuration;
         private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly IDoctorRepository _doctorRepository;
 
         public AuthController(
             UserManager<ApplicationUser> userManager,
             IConfiguration configuration,
-            RoleManager<IdentityRole> roleManager)
+            RoleManager<IdentityRole> roleManager,
+            IDoctorRepository doctorRepository)
         {
             _userManager = userManager;
             _configuration = configuration;
             _roleManager = roleManager;
+            _doctorRepository = doctorRepository;
         }
 
-        // ================================================================
-        // USER REGISTRATION
-        // ================================================================
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDto dto)
         {
@@ -47,6 +48,17 @@ namespace ClinicManagementSystem.Controllers
             if (!result.Succeeded)
                 return BadRequest(result.Errors);
 
+            // FIXED: Link doctor account if role is Doctor
+            if (dto.Role == "Doctor")
+            {
+                var doctor = await _doctorRepository.GetByEmailAsync(dto.Email);
+                if (doctor != null)
+                {
+                    user.DoctorId = doctor.Id;
+                    await _userManager.UpdateAsync(user);
+                }
+            }
+
             if (!string.IsNullOrEmpty(dto.Role))
             {
                 if (!await _roleManager.RoleExistsAsync(dto.Role))
@@ -58,9 +70,6 @@ namespace ClinicManagementSystem.Controllers
             return Ok(new { message = "User created" });
         }
 
-        // ================================================================
-        // LOGIN + JWT ISSUE
-        // ================================================================
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDto dto)
         {
@@ -83,6 +92,7 @@ namespace ClinicManagementSystem.Controllers
             foreach (var r in roles)
                 authClaims.Add(new Claim(ClaimTypes.Role, r));
 
+            // FIXED: Always include DoctorId if available
             if (user.DoctorId.HasValue)
                 authClaims.Add(new Claim("DoctorId", user.DoctorId.Value.ToString()));
 
@@ -100,13 +110,12 @@ namespace ClinicManagementSystem.Controllers
             return Ok(new
             {
                 token = new JwtSecurityTokenHandler().WriteToken(token),
-                expiration = token.ValidTo
+                expiration = token.ValidTo,
+                roles = roles,
+                doctorId = user.DoctorId
             });
         }
 
-        // ================================================================
-        // ASSIGN ROLE (ADMIN ONLY)
-        // ================================================================
         [Authorize(Roles = "Admin")]
         [HttpPost("assign-role")]
         public async Task<IActionResult> AssignRole([FromBody] AssignRoleDto dto)
@@ -118,6 +127,17 @@ namespace ClinicManagementSystem.Controllers
             if (!await _roleManager.RoleExistsAsync(dto.Role))
                 await _roleManager.CreateAsync(new IdentityRole(dto.Role));
 
+            // FIXED: Link doctor when assigning Doctor role
+            if (dto.Role == "Doctor")
+            {
+                var doctor = await _doctorRepository.GetByEmailAsync(dto.Email);
+                if (doctor != null)
+                {
+                    user.DoctorId = doctor.Id;
+                    await _userManager.UpdateAsync(user);
+                }
+            }
+
             var currentRoles = await _userManager.GetRolesAsync(user);
             if (currentRoles.Any())
                 await _userManager.RemoveFromRolesAsync(user, currentRoles);
@@ -127,9 +147,6 @@ namespace ClinicManagementSystem.Controllers
             return Ok(new { message = $"Role '{dto.Role}' assigned to {dto.Email}" });
         }
 
-        // ================================================================
-        // REMOVE ROLE (ADMIN ONLY)
-        // ================================================================
         [Authorize(Roles = "Admin")]
         [HttpPost("remove-role")]
         public async Task<IActionResult> RemoveRole([FromBody] RemoveRoleDto dto)
@@ -149,9 +166,6 @@ namespace ClinicManagementSystem.Controllers
             return Ok(new { message = $"Role '{dto.Role}' removed from {dto.Email}" });
         }
 
-        // ================================================================
-        // GET USER ROLES
-        // ================================================================
         [Authorize(Roles = "Admin")]
         [HttpGet("get-roles/{email}")]
         public async Task<IActionResult> GetUserRoles(string email)
@@ -164,9 +178,6 @@ namespace ClinicManagementSystem.Controllers
             return Ok(roles);
         }
 
-        // ================================================================
-        // LIST ALL ROLES
-        // ================================================================
         [Authorize(Roles = "Admin")]
         [HttpGet("all-roles")]
         public IActionResult GetAllRoles()
@@ -174,5 +185,30 @@ namespace ClinicManagementSystem.Controllers
             var roles = _roleManager.Roles.Select(r => r.Name).ToList();
             return Ok(roles);
         }
+
+        // NEW: Link doctor to user
+        [Authorize(Roles = "Admin")]
+        [HttpPost("link-doctor")]
+        public async Task<IActionResult> LinkDoctorToUser([FromBody] LinkDoctorDto dto)
+        {
+            var user = await _userManager.FindByEmailAsync(dto.Email);
+            if (user == null)
+                return NotFound("User not found");
+
+            var doctor = await _doctorRepository.GetByIdAsync(dto.DoctorId);
+            if (doctor == null)
+                return NotFound("Doctor not found");
+
+            user.DoctorId = dto.DoctorId;
+            await _userManager.UpdateAsync(user);
+
+            return Ok(new { message = $"Doctor {doctor.FullName} linked to user {dto.Email}" });
+        }
+    }
+
+    public class LinkDoctorDto
+    {
+        public string Email { get; set; } = null!;
+        public int DoctorId { get; set; }
     }
 }

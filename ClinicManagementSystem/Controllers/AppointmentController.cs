@@ -1,10 +1,10 @@
-﻿using AutoMapper;
+﻿
+using AutoMapper;
 using ClinicManagementSystem.DTOs.Appointment;
 using ClinicManagementSystem.Entities;
 using ClinicManagementSystem.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace ClinicManagementSystem.Controllers
 {
@@ -21,7 +21,6 @@ namespace ClinicManagementSystem.Controllers
             _mapper = mapper;
         }
 
-        // Receptionist/Admin: Create Appointment
         [HttpPost]
         [Authorize(Roles = "Admin,Receptionist")]
         public async Task<IActionResult> Create([FromBody] CreateAppointmentDto dto)
@@ -35,140 +34,233 @@ namespace ClinicManagementSystem.Controllers
             var doctor = await _uow.Doctors.GetByIdAsync(dto.DoctorId);
             if (doctor == null) return BadRequest("Doctor not found");
 
-            // Check doctor schedule
+            // Check if appointment is in the future
+            if (dto.DateTime <= DateTime.UtcNow)
+                return BadRequest("Appointment must be in the future");
+
+            // Check doctor's schedule (using DayOfWeek)
+            var appointmentDay = dto.DateTime.DayOfWeek;
             var schedules = await _uow.DoctorSchedules.GetByDoctorIdAsync(dto.DoctorId);
-            var daySchedules = schedules.Where(s => s.DayOfWeek == dto.AppointmentDate.DayOfWeek);
+            var daySchedule = schedules.FirstOrDefault(s => s.DayOfWeek == appointmentDay);
 
-            bool withinSchedule = daySchedules.Any(s =>
-                dto.AppointmentDate.TimeOfDay >= s.StartTime &&
-                dto.AppointmentDate.TimeOfDay < s.EndTime);
+            if (daySchedule == null)
+                return BadRequest("Doctor is not available on this day");
 
-            if (!withinSchedule)
-                return BadRequest("Appointment time is not within the doctor's schedule");
+            var appointmentTime = dto.DateTime.TimeOfDay;
+            if (appointmentTime < daySchedule.StartTime || appointmentTime >= daySchedule.EndTime)
+                return BadRequest("Appointment time is outside the doctor's schedule");
 
-            // Check for conflicts
-            bool conflict = await _uow.Appointments.HasConflictAsync(dto.DoctorId, dto.AppointmentDate);
-            if (conflict)
-                return Conflict("Doctor already has an appointment at this time");
+            if (await _uow.Appointments.HasConflictAsync(dto.DoctorId, dto.DateTime))
+                return Conflict("Doctor has a conflicting appointment at that date/time");
 
             var appointment = _mapper.Map<Appointment>(dto);
             await _uow.Appointments.AddAsync(appointment);
             await _uow.CompleteAsync();
 
-            var result = _mapper.Map<AppointmentDto>(appointment);
+            // Reload the appointment with included entities
+            var createdAppointment = await _uow.Appointments.GetByIdAsync(appointment.Id);
+            var resultDto = _mapper.Map<AppointmentDto>(createdAppointment);
 
-            return CreatedAtAction(nameof(GetById), new { id = appointment.Id }, result);
+            // Set display properties
+            if (createdAppointment.Patient != null)
+            {
+                resultDto.PatientName = $"{createdAppointment.Patient.FirstName} {createdAppointment.Patient.LastName}";
+                resultDto.PatientEmail = createdAppointment.Patient.Email;
+            }
+
+            if (createdAppointment.Doctor != null)
+            {
+                resultDto.DoctorName = createdAppointment.Doctor.FullName;
+                resultDto.DoctorEmail = createdAppointment.Doctor.Email;
+            }
+
+            return CreatedAtAction(nameof(GetById), new { id = appointment.Id }, resultDto);
         }
 
-        // Doctor: View own appointments (Requires mapping user->doctor in future)
-        [HttpGet("me")]
-        [Authorize(Roles = "Doctor")]
-        public async Task<IActionResult> GetMine()
-        {
-            var doctorIdClaim = User.FindFirst("DoctorId");
-            if (doctorIdClaim == null)
-                return BadRequest("Doctor account is not linked to any doctor profile.");
-
-            int doctorId = int.Parse(doctorIdClaim.Value);
-
-            var appointments = await _uow.Appointments.GetByDoctorIdAsync(doctorId);
-
-            return Ok(_mapper.Map<IEnumerable<AppointmentDto>>(appointments));
-        }
-
-        // Doctor/Admin: Get appointments by doctor
-        [HttpGet("doctor/{doctorId}")]
-        [Authorize(Roles = "Admin,Doctor")]
-        public async Task<IActionResult> GetByDoctor(int doctorId)
-        {
-            var appointments = await _uow.Appointments.GetByDoctorIdAsync(doctorId);
-            return Ok(_mapper.Map<IEnumerable<AppointmentDto>>(appointments));
-        }
-
-        // Admin: Get all appointments
-        [HttpGet]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> GetAll()
-        {
-            var appointments = await _uow.Appointments.GetAllAsync();
-            return Ok(_mapper.Map<IEnumerable<AppointmentDto>>(appointments));
-        }
-
-        // Receptionist/Admin: Reschedule Appointment
         [HttpPut("{id}/reschedule")]
         [Authorize(Roles = "Admin,Receptionist")]
         public async Task<IActionResult> Reschedule(int id, [FromBody] CreateAppointmentDto dto)
         {
-            if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+            var appt = await _uow.Appointments.GetByIdAsync(id);
+            if (appt == null) return NotFound();
 
-            var appointment = await _uow.Appointments.GetByIdAsync(id);
-            if (appointment == null) return NotFound();
+            var doctor = await _uow.Doctors.GetByIdAsync(dto.DoctorId);
+            if (doctor == null) return BadRequest("Doctor not found");
 
+            if (dto.DateTime <= DateTime.UtcNow)
+                return BadRequest("Appointment must be in the future");
+
+            // Check doctor's schedule
+            var appointmentDay = dto.DateTime.DayOfWeek;
             var schedules = await _uow.DoctorSchedules.GetByDoctorIdAsync(dto.DoctorId);
-            var daySchedules = schedules.Where(s => s.DayOfWeek == dto.AppointmentDate.DayOfWeek);
+            var daySchedule = schedules.FirstOrDefault(s => s.DayOfWeek == appointmentDay);
 
-            bool withinSchedule = daySchedules.Any(s =>
-                dto.AppointmentDate.TimeOfDay >= s.StartTime &&
-                dto.AppointmentDate.TimeOfDay < s.EndTime);
+            if (daySchedule == null)
+                return BadRequest("Doctor is not available on this day");
 
-            if (!withinSchedule)
-                return BadRequest("New appointment time is outside doctor's schedule");
+            var appointmentTime = dto.DateTime.TimeOfDay;
+            if (appointmentTime < daySchedule.StartTime || appointmentTime >= daySchedule.EndTime)
+                return BadRequest("New appointment time is outside the doctor's schedule");
 
-            bool conflict = await _uow.Appointments.HasConflictAsync(dto.DoctorId, dto.AppointmentDate);
-            if (conflict)
-                return Conflict("Doctor already has an appointment at this time");
+            if (await _uow.Appointments.HasConflictAsync(dto.DoctorId, dto.DateTime))
+                return Conflict("Doctor has a conflicting appointment at that date/time");
 
-            appointment.AppointmentDate = dto.AppointmentDate;
-            appointment.Description = dto.Description;
+            appt.DateTime = dto.DateTime.ToUniversalTime();
+            appt.Description = dto.Description;
+            appt.DoctorId = dto.DoctorId;
 
-            _uow.Appointments.Update(appointment);
+            _uow.Appointments.Update(appt);
             await _uow.CompleteAsync();
 
-            return Ok(_mapper.Map<AppointmentDto>(appointment));
+            // Reload with included entities
+            var updatedAppointment = await _uow.Appointments.GetByIdAsync(id);
+            var resultDto = _mapper.Map<AppointmentDto>(updatedAppointment);
+
+            if (updatedAppointment.Patient != null)
+            {
+                resultDto.PatientName = $"{updatedAppointment.Patient.FirstName} {updatedAppointment.Patient.LastName}";
+                resultDto.PatientEmail = updatedAppointment.Patient.Email;
+            }
+
+            if (updatedAppointment.Doctor != null)
+            {
+                resultDto.DoctorName = updatedAppointment.Doctor.FullName;
+                resultDto.DoctorEmail = updatedAppointment.Doctor.Email;
+            }
+
+            return Ok(resultDto);
         }
 
-        // Receptionist/Admin: Cancel Appointment
         [HttpPatch("{id}/cancel")]
         [Authorize(Roles = "Admin,Receptionist")]
         public async Task<IActionResult> Cancel(int id)
         {
-            var appointment = await _uow.Appointments.GetByIdAsync(id);
-            if (appointment == null) return NotFound();
+            var appt = await _uow.Appointments.GetByIdAsync(id);
+            if (appt == null) return NotFound();
 
-            appointment.Status = AppointmentStatus.Cancelled;
-
-            _uow.Appointments.Update(appointment);
+            appt.Status = AppointmentStatus.Cancelled;
+            _uow.Appointments.Update(appt);
             await _uow.CompleteAsync();
 
             return NoContent();
         }
 
-        // Doctor: Mark Completed
         [HttpPatch("{id}/complete")]
         [Authorize(Roles = "Doctor")]
-        public async Task<IActionResult> MarkComplete(int id)
+        public async Task<IActionResult> Complete(int id)
         {
-            var appointment = await _uow.Appointments.GetByIdAsync(id);
-            if (appointment == null) return NotFound();
+            var appt = await _uow.Appointments.GetByIdAsync(id);
+            if (appt == null) return NotFound();
 
-            appointment.Status = AppointmentStatus.Completed;
-
-            _uow.Appointments.Update(appointment);
+            appt.Status = AppointmentStatus.Completed;
+            _uow.Appointments.Update(appt);
             await _uow.CompleteAsync();
 
             return NoContent();
         }
 
-        // Get appointment by id
         [HttpGet("{id}")]
         [Authorize]
         public async Task<IActionResult> GetById(int id)
         {
-            var appointment = await _uow.Appointments.GetByIdAsync(id);
-            if (appointment == null) return NotFound();
+            var appt = await _uow.Appointments.GetByIdAsync(id);
+            if (appt == null) return NotFound();
 
-            return Ok(_mapper.Map<AppointmentDto>(appointment));
+            var resultDto = _mapper.Map<AppointmentDto>(appt);
+
+            if (appt.Patient != null)
+            {
+                resultDto.PatientName = $"{appt.Patient.FirstName} {appt.Patient.LastName}";
+                resultDto.PatientEmail = appt.Patient.Email;
+            }
+
+            if (appt.Doctor != null)
+            {
+                resultDto.DoctorName = appt.Doctor.FullName;
+                resultDto.DoctorEmail = appt.Doctor.Email;
+            }
+
+            return Ok(resultDto);
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Admin,Doctor")]
+        public async Task<IActionResult> GetAll()
+        {
+            var appts = await _uow.Appointments.GetAllAsync();
+            var resultDtos = _mapper.Map<List<AppointmentDto>>(appts);
+
+            // Set display properties
+            foreach (var appointment in appts)
+            {
+                var dto = resultDtos.First(d => d.Id == appointment.Id);
+
+                if (appointment.Patient != null)
+                {
+                    dto.PatientName = $"{appointment.Patient.FirstName} {appointment.Patient.LastName}";
+                    dto.PatientEmail = appointment.Patient.Email;
+                }
+
+                if (appointment.Doctor != null)
+                {
+                    dto.DoctorName = appointment.Doctor.FullName;
+                    dto.DoctorEmail = appointment.Doctor.Email;
+                }
+            }
+
+            return Ok(resultDtos);
+        }
+
+        [HttpGet("me")]
+        [Authorize(Roles = "Doctor")]
+        public async Task<IActionResult> GetMine()
+        {
+            var doctorClaim = User.FindFirst("DoctorId");
+            if (doctorClaim == null || !int.TryParse(doctorClaim.Value, out int doctorId))
+                return BadRequest("Doctor account not linked to a doctor profile");
+
+            var appts = await _uow.Appointments.GetByDoctorIdAsync(doctorId);
+            var resultDtos = _mapper.Map<List<AppointmentDto>>(appts);
+
+            foreach (var appointment in appts)
+            {
+                var dto = resultDtos.First(d => d.Id == appointment.Id);
+
+                if (appointment.Patient != null)
+                {
+                    dto.PatientName = $"{appointment.Patient.FirstName} {appointment.Patient.LastName}";
+                    dto.PatientEmail = appointment.Patient.Email;
+                }
+
+                dto.DoctorName = appointment.Doctor?.FullName;
+                dto.DoctorEmail = appointment.Doctor?.Email;
+            }
+
+            return Ok(resultDtos);
+        }
+
+        [HttpGet("doctor/{doctorId}")]
+        [Authorize(Roles = "Admin,Doctor")]
+        public async Task<IActionResult> GetByDoctor(int doctorId)
+        {
+            var appts = await _uow.Appointments.GetByDoctorIdAsync(doctorId);
+            var resultDtos = _mapper.Map<List<AppointmentDto>>(appts);
+
+            foreach (var appointment in appts)
+            {
+                var dto = resultDtos.First(d => d.Id == appointment.Id);
+
+                if (appointment.Patient != null)
+                {
+                    dto.PatientName = $"{appointment.Patient.FirstName} {appointment.Patient.LastName}";
+                    dto.PatientEmail = appointment.Patient.Email;
+                }
+
+                dto.DoctorName = appointment.Doctor?.FullName;
+                dto.DoctorEmail = appointment.Doctor?.Email;
+            }
+
+            return Ok(resultDtos);
         }
     }
 }

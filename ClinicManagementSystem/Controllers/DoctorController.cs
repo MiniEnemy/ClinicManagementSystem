@@ -1,6 +1,4 @@
-﻿using AutoMapper;
-using ClinicManagementSystem.DTOs.Doctor;
-using ClinicManagementSystem.Entities;
+﻿using ClinicManagementSystem.Entities;
 using ClinicManagementSystem.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -9,70 +7,71 @@ namespace ClinicManagementSystem.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class DoctorController : ControllerBase
     {
-        private readonly IUnitOfWork _uow;
-        private readonly IMapper _mapper;
+        private readonly IUnitOfWork _unitOfWork;
 
-        public DoctorController(IUnitOfWork uow, IMapper mapper)
+        public DoctorController(IUnitOfWork unitOfWork)
         {
-            _uow = uow;
-            _mapper = mapper;
+            _unitOfWork = unitOfWork;
         }
 
-        // Admin only: create doctor
-        [HttpPost]
-        [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Create([FromBody] CreateDoctorDto dto)
-        {
-            var doctor = _mapper.Map<Doctor>(dto);
-            await _uow.Doctors.AddAsync(doctor);
-            await _uow.CompleteAsync();
-            return CreatedAtAction(nameof(Get), new { id = doctor.Id }, _mapper.Map<DoctorDto>(doctor));
-        }
-
-        // Admin: get all doctors
         [HttpGet]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Receptionist,Doctor")]
         public async Task<IActionResult> GetAll()
         {
-            var docs = await _uow.Doctors.GetAllAsync();
-            return Ok(_mapper.Map<IEnumerable<DoctorDto>>(docs));
+            var doctors = await _unitOfWork.Doctors.GetAllAsync();
+            return Ok(doctors);
         }
 
-        // Admin: get doctor
         [HttpGet("{id}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Receptionist,Doctor")]
         public async Task<IActionResult> Get(int id)
         {
-            var doc = await _uow.Doctors.GetByIdAsync(id);
-            if (doc == null) return NotFound();
-            return Ok(_mapper.Map<DoctorDto>(doc));
+            var doctor = await _unitOfWork.Doctors.GetByIdAsync(id);
+            if (doctor == null) return NotFound();
+            return Ok(doctor);
         }
 
-        // Admin: update doctor
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Create([FromBody] Doctor doctor)
+        {
+            await _unitOfWork.Doctors.AddAsync(doctor);
+            await _unitOfWork.CompleteAsync();
+            return Ok(doctor);
+        }
+
         [HttpPut("{id}")]
         [Authorize(Roles = "Admin")]
-        public async Task<IActionResult> Update(int id, [FromBody] CreateDoctorDto dto)
+        public async Task<IActionResult> Update(int id, [FromBody] Doctor updatedDoctor)
         {
-            var doc = await _uow.Doctors.GetByIdAsync(id);
-            if (doc == null) return NotFound();
-            _mapper.Map(dto, doc);
-            _uow.Doctors.Update(doc);
-            await _uow.CompleteAsync();
-            return Ok(_mapper.Map<DoctorDto>(doc));
+            var doctor = await _unitOfWork.Doctors.GetByIdAsync(id);
+            if (doctor == null) return NotFound();
+
+            doctor.FullName = updatedDoctor.FullName;
+            doctor.Email = updatedDoctor.Email;
+            doctor.Phone = updatedDoctor.Phone;
+            doctor.Specialization = updatedDoctor.Specialization;
+
+            _unitOfWork.Doctors.Update(doctor);
+            await _unitOfWork.CompleteAsync();
+
+            return Ok(doctor);
         }
 
-        // Admin: delete doctor
         [HttpDelete("{id}")]
         [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(int id)
         {
-            var doc = await _uow.Doctors.GetByIdAsync(id);
-            if (doc == null) return NotFound();
-            _uow.Doctors.Remove(doc);
-            await _uow.CompleteAsync();
-            return NoContent();
+            var doctor = await _unitOfWork.Doctors.GetByIdAsync(id);
+            if (doctor == null) return NotFound();
+
+            _unitOfWork.Doctors.Remove(doctor);
+            await _unitOfWork.CompleteAsync();
+
+            return Ok(new { message = "Doctor deleted successfully." });
         }
     }
 }

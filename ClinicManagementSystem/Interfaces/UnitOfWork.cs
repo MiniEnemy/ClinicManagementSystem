@@ -1,5 +1,6 @@
 ﻿using ClinicManagementSystem.Data;
 using ClinicManagementSystem.Interfaces;
+using System.Threading.Tasks;
 
 namespace ClinicManagementSystem.Repositories
 {
@@ -25,7 +26,6 @@ namespace ClinicManagementSystem.Repositories
         }
 
         public async Task<int> CompleteAsync() => await _context.SaveChangesAsync();
-
         public void Dispose() => _context.Dispose();
     }
 }
