@@ -1,4 +1,5 @@
-﻿
+﻿using System;
+
 namespace ClinicManagementSystem.DTOs.Appointment
 {
     public class AppointmentDto
@@ -6,7 +7,7 @@ namespace ClinicManagementSystem.DTOs.Appointment
         public int Id { get; set; }
         public int PatientId { get; set; }
         public int DoctorId { get; set; }
-        public DateTime DateTime { get; set; } // Using DateTime directly for PostgreSQL
+        public DateTime DateTime { get; set; }
         public string? Description { get; set; }
         public string Status { get; set; } = "Scheduled";
         public DateTime CreatedAt { get; set; }
@@ -16,5 +17,6 @@ namespace ClinicManagementSystem.DTOs.Appointment
         public string? DoctorName { get; set; }
         public string? PatientEmail { get; set; }
         public string? DoctorEmail { get; set; }
+        public string? DoctorSpecialization { get; set; }
     }
 }

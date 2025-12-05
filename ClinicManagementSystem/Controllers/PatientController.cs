@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using ClinicManagementSystem.Data;
 using ClinicManagementSystem.DTOs.Patient;
 using ClinicManagementSystem.Entities;
 using ClinicManagementSystem.Interfaces;

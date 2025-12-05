@@ -1,4 +1,5 @@
-﻿using ClinicManagementSystem.Entities;
+﻿using ClinicManagementSystem.Data;
+using ClinicManagementSystem.Entities;
 using ClinicManagementSystem.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

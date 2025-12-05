@@ -1,4 +1,6 @@
 ﻿using ClinicManagementSystem.Entities;
+using ClinicManagementSystem.Helpers;
+using ClinicManagementSystem.DTOs.Appointment;
 
 namespace ClinicManagementSystem.Interfaces
 {
@@ -9,7 +11,9 @@ namespace ClinicManagementSystem.Interfaces
         Task<Appointment?> GetByIdAsync(int id);
         Task<IEnumerable<Appointment>> GetAllAsync();
         Task<IEnumerable<Appointment>> GetByDoctorIdAsync(int doctorId);
+        Task<bool> HasConflictAsync(int doctorId, DateTime dateTime);
 
-        Task<bool> HasConflictAsync(int doctorId, DateTime dateTime); // single DateTime
+        // NEW METHOD ADDED: For pagination, sorting, and filtering
+        Task<PagedResponse<Appointment>> GetPagedAsync(AppointmentQueryParams queryParams);
     }
 }

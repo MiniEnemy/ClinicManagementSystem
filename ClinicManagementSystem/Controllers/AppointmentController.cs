@@ -1,7 +1,8 @@
-﻿
-using AutoMapper;
+﻿using AutoMapper;
+using ClinicManagementSystem.Data;
 using ClinicManagementSystem.DTOs.Appointment;
 using ClinicManagementSystem.Entities;
+using ClinicManagementSystem.Helpers;
 using ClinicManagementSystem.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -72,6 +73,7 @@ namespace ClinicManagementSystem.Controllers
             {
                 resultDto.DoctorName = createdAppointment.Doctor.FullName;
                 resultDto.DoctorEmail = createdAppointment.Doctor.Email;
+                resultDto.DoctorSpecialization = createdAppointment.Doctor.Specialization;
             }
 
             return CreatedAtAction(nameof(GetById), new { id = appointment.Id }, resultDto);
@@ -126,6 +128,7 @@ namespace ClinicManagementSystem.Controllers
             {
                 resultDto.DoctorName = updatedAppointment.Doctor.FullName;
                 resultDto.DoctorEmail = updatedAppointment.Doctor.Email;
+                resultDto.DoctorSpecialization = updatedAppointment.Doctor.Specialization;
             }
 
             return Ok(resultDto);
@@ -178,22 +181,36 @@ namespace ClinicManagementSystem.Controllers
             {
                 resultDto.DoctorName = appt.Doctor.FullName;
                 resultDto.DoctorEmail = appt.Doctor.Email;
+                resultDto.DoctorSpecialization = appt.Doctor.Specialization;
             }
 
             return Ok(resultDto);
         }
 
+        // UPDATED: Now with pagination, sorting, and filtering
         [HttpGet]
-        [Authorize(Roles = "Admin,Doctor")]
-        public async Task<IActionResult> GetAll()
+        [Authorize(Roles = "Admin,Doctor,Receptionist")]
+        public async Task<IActionResult> GetAll([FromQuery] AppointmentQueryParams queryParams)
         {
-            var appts = await _uow.Appointments.GetAllAsync();
-            var resultDtos = _mapper.Map<List<AppointmentDto>>(appts);
+            // If user is Doctor (not Admin), restrict to their appointments only
+            if (User.IsInRole("Doctor") && !User.IsInRole("Admin"))
+            {
+                var doctorClaim = User.FindFirst("DoctorId");
+                if (doctorClaim != null && int.TryParse(doctorClaim.Value, out int doctorId))
+                {
+                    queryParams.DoctorId = doctorId;
+                }
+            }
+
+            var pagedAppointments = await _uow.Appointments.GetPagedAsync(queryParams);
+
+            // Map to DTOs
+            var appointmentDtos = _mapper.Map<List<AppointmentDto>>(pagedAppointments.Data);
 
             // Set display properties
-            foreach (var appointment in appts)
+            foreach (var appointment in pagedAppointments.Data)
             {
-                var dto = resultDtos.First(d => d.Id == appointment.Id);
+                var dto = appointmentDtos.First(d => d.Id == appointment.Id);
 
                 if (appointment.Patient != null)
                 {
@@ -205,26 +222,39 @@ namespace ClinicManagementSystem.Controllers
                 {
                     dto.DoctorName = appointment.Doctor.FullName;
                     dto.DoctorEmail = appointment.Doctor.Email;
+                    dto.DoctorSpecialization = appointment.Doctor.Specialization;
                 }
             }
 
-            return Ok(resultDtos);
+            var pagedResponse = new PagedResponse<AppointmentDto>(
+                appointmentDtos,
+                pagedAppointments.PageNumber,
+                pagedAppointments.PageSize,
+                pagedAppointments.TotalRecords
+            );
+
+            return Ok(pagedResponse);
         }
 
+        // UPDATED: Now with pagination, sorting, and filtering
         [HttpGet("me")]
         [Authorize(Roles = "Doctor")]
-        public async Task<IActionResult> GetMine()
+        public async Task<IActionResult> GetMine([FromQuery] AppointmentQueryParams queryParams)
         {
             var doctorClaim = User.FindFirst("DoctorId");
             if (doctorClaim == null || !int.TryParse(doctorClaim.Value, out int doctorId))
                 return BadRequest("Doctor account not linked to a doctor profile");
 
-            var appts = await _uow.Appointments.GetByDoctorIdAsync(doctorId);
-            var resultDtos = _mapper.Map<List<AppointmentDto>>(appts);
+            // Always filter by current doctor
+            queryParams.DoctorId = doctorId;
 
-            foreach (var appointment in appts)
+            var pagedAppointments = await _uow.Appointments.GetPagedAsync(queryParams);
+
+            var appointmentDtos = _mapper.Map<List<AppointmentDto>>(pagedAppointments.Data);
+
+            foreach (var appointment in pagedAppointments.Data)
             {
-                var dto = resultDtos.First(d => d.Id == appointment.Id);
+                var dto = appointmentDtos.First(d => d.Id == appointment.Id);
 
                 if (appointment.Patient != null)
                 {
@@ -232,23 +262,49 @@ namespace ClinicManagementSystem.Controllers
                     dto.PatientEmail = appointment.Patient.Email;
                 }
 
-                dto.DoctorName = appointment.Doctor?.FullName;
-                dto.DoctorEmail = appointment.Doctor?.Email;
+                if (appointment.Doctor != null)
+                {
+                    dto.DoctorName = appointment.Doctor.FullName;
+                    dto.DoctorEmail = appointment.Doctor.Email;
+                    dto.DoctorSpecialization = appointment.Doctor.Specialization;
+                }
             }
 
-            return Ok(resultDtos);
+            var pagedResponse = new PagedResponse<AppointmentDto>(
+                appointmentDtos,
+                pagedAppointments.PageNumber,
+                pagedAppointments.PageSize,
+                pagedAppointments.TotalRecords
+            );
+
+            return Ok(pagedResponse);
         }
 
+        // UPDATED: Now with pagination, sorting, and filtering
         [HttpGet("doctor/{doctorId}")]
-        [Authorize(Roles = "Admin,Doctor")]
-        public async Task<IActionResult> GetByDoctor(int doctorId)
+        [Authorize(Roles = "Admin,Doctor,Receptionist")]
+        public async Task<IActionResult> GetByDoctor(int doctorId, [FromQuery] AppointmentQueryParams queryParams)
         {
-            var appts = await _uow.Appointments.GetByDoctorIdAsync(doctorId);
-            var resultDtos = _mapper.Map<List<AppointmentDto>>(appts);
-
-            foreach (var appointment in appts)
+            // If user is Doctor (not Admin), they can only see their own appointments
+            if (User.IsInRole("Doctor") && !User.IsInRole("Admin"))
             {
-                var dto = resultDtos.First(d => d.Id == appointment.Id);
+                var doctorClaim = User.FindFirst("DoctorId");
+                if (doctorClaim == null || !int.TryParse(doctorClaim.Value, out int currentDoctorId))
+                    return BadRequest("Doctor account not linked to a doctor profile");
+
+                if (doctorId != currentDoctorId)
+                    return Forbid("You can only view your own appointments");
+            }
+
+            queryParams.DoctorId = doctorId;
+
+            var pagedAppointments = await _uow.Appointments.GetPagedAsync(queryParams);
+
+            var appointmentDtos = _mapper.Map<List<AppointmentDto>>(pagedAppointments.Data);
+
+            foreach (var appointment in pagedAppointments.Data)
+            {
+                var dto = appointmentDtos.First(d => d.Id == appointment.Id);
 
                 if (appointment.Patient != null)
                 {
@@ -256,11 +312,22 @@ namespace ClinicManagementSystem.Controllers
                     dto.PatientEmail = appointment.Patient.Email;
                 }
 
-                dto.DoctorName = appointment.Doctor?.FullName;
-                dto.DoctorEmail = appointment.Doctor?.Email;
+                if (appointment.Doctor != null)
+                {
+                    dto.DoctorName = appointment.Doctor.FullName;
+                    dto.DoctorEmail = appointment.Doctor.Email;
+                    dto.DoctorSpecialization = appointment.Doctor.Specialization;
+                }
             }
 
-            return Ok(resultDtos);
+            var pagedResponse = new PagedResponse<AppointmentDto>(
+                appointmentDtos,
+                pagedAppointments.PageNumber,
+                pagedAppointments.PageSize,
+                pagedAppointments.TotalRecords
+            );
+
+            return Ok(pagedResponse);
         }
     }
 }
