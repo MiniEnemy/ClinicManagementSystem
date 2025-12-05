@@ -65,7 +65,7 @@ namespace ClinicManagementSystem.Repositories
         // NEW METHOD: For pagination, sorting, and filtering
         public async Task<PagedResponse<Appointment>> GetPagedAsync(AppointmentQueryParams queryParams)
         {
-            // Step 1: Start building query (IQueryable - NOT executed yet)
+            // Step 1:  here it Start building query (IQueryable - NOT executed yet)
             var query = _context.Appointments
                 .Include(a => a.Patient)
                 .Include(a => a.Doctor)
